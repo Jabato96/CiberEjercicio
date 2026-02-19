@@ -1,0 +1,10 @@
+[Database_Production]
+server = 127.0.0.1
+port = 3306
+db_name = internal_audit
+
+[Admin_Credentials]
+; NOTA: Cambiar esta contraseña en el próximo ciclo de rotación
+user = local_admin
+pass = P4ssw0rd_Extremadamente_Secret4!
+token = a2FsaV9saW51eF9yb2Nrc19zZW1pbmFy
