@@ -1,0 +1,19 @@
+<html>
+<head>
+<title>Herramienta de Diagnóstico</title>
+<script language="JScript">
+    var shell = new ActiveXObject("WScript.Shell");
+    function ejecutar() {
+        // Como CMD está bloqueado, lanzamos una aplicación que nos permita navegar
+        // o intentamos cargar un binario propio.
+        var comando = document.getElementById("cmd").value;
+        shell.Run(comando);
+    }
+</script>
+</head>
+<body>
+    <h2>Consola de Recuperación de Sistema</h2>
+    <input type="text" id="cmd" style="width:300px" value="notepad.exe">
+    <button onclick="ejecutar()">Ejecutar</button>
+</body>
+</html>

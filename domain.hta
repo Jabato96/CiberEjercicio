@@ -1,0 +1,97 @@
+<html>
+<head>
+<title>Tool de Auditoria de Dominio (No-CMD)</title>
+<hta:application id="oHTA" border="thin" scroll="no" singleinstance="yes">
+<style>
+    body { background: #1a1a1a; color: #00ff00; font-family: 'Segoe UI', Tahoma, sans-serif; padding: 20px; }
+    .box { border: 1px dashed #00ff00; padding: 15px; background: #000; margin-bottom: 20px; }
+    h2 { color: #ffcc00; margin-top: 0; font-size: 18px; }
+    button { 
+        background: #333; color: #00ff00; border: 1px solid #00ff00; 
+        padding: 8px 15px; cursor: pointer; width: 100%; margin-bottom: 5px;
+    }
+    button:hover { background: #00ff00; color: #000; }
+    #log { 
+        width: 100%; height: 200px; background: #050505; color: #33ff33; 
+        border: 1px solid #333; padding: 10px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 12px;
+    }
+</style>
+
+<script language="JScript">
+    function writeLog(txt) {
+        var log = document.getElementById("log");
+        log.innerHTML += "> " + txt + "<br>";
+        log.scrollTop = log.scrollHeight;
+    }
+
+    // 1. Obtener Info de Dominio vía ADSI (Sin CMD)
+    function getDomainInfo() {
+        writeLog("Consultando Active Directory Service Interfaces...");
+        try {
+            var objSysInfo = new ActiveXObject("ADSystemInfo");
+            var strUserDN = objSysInfo.UserName;
+            var objUser = GetObject("LDAP://" + strUserDN);
+            
+            writeLog("<b>Usuario:</b> " + objUser.Get("displayName"));
+            writeLog("<b>DN:</b> " + strUserDN);
+            
+            // Intentar leer grupos
+            var groups = objUser.GetEx("memberOf");
+            writeLog("<b>Grupos detectados:</b>");
+            for (var i = 0; i < groups.length; i++) {
+                writeLog(" - " + groups[i]);
+            }
+        } catch(e) {
+            writeLog("<span style='color:red;'>Error ADSI: " + e.message + " (¿Eres usuario local?)</span>");
+        }
+    }
+
+    // 2. Forzar captura de clave (Phishing de Sistema)
+    function promptAuth() {
+        writeLog("Lanzando peticion de autenticacion de red...");
+        try {
+            var network = new ActiveXObject("WScript.Network");
+            var user = network.UserName;
+            
+            // Intentamos mapear una unidad a una IP inexistente para forzar el prompt
+            // Windows pedirá credenciales si no puede autenticar automáticamente
+            writeLog("Solicitando validacion para: " + user);
+            network.MapNetworkDrive("Z:", "\\\\127.0.0.1\\C$", true);
+        } catch(e) {
+            // El error suele ser "El nombre de red no se encuentra", pero el prompt ya salió
+            writeLog("Prompt finalizado o cancelado.");
+        }
+    }
+
+    // 3. Explorar archivos visualmente
+    function browseFiles() {
+        try {
+            var shellApp = new ActiveXObject("Shell.Application");
+            shellApp.Explore("C:\\Users\\Public");
+            writeLog("Abriendo explorador de archivos (bypass de dir)...");
+        } catch(e) {
+            writeLog("Error: " + e.message);
+        }
+    }
+</script>
+</head>
+<body>
+    <h2>Identidad de Dominio: [MODO SIGILOSO]</h2>
+    
+    <div class="box">
+        <button onclick="getDomainInfo()">1. Enumerar mis Permisos AD</button>
+        <p style="font-size:10px; color:#888;">Consulta directamente al DC sin usar el terminal.</p>
+    </div>
+
+    <div class="box">
+        <button onclick="promptAuth()">2. Capturar Mi Propia Clave</button>
+        <p style="font-size:10px; color:#888;">Lanza el popup de red oficial de Windows.</p>
+    </div>
+
+    <div class="box">
+        <button onclick="browseFiles()">3. Explorar C:\Users\Public</button>
+    </div>
+
+    <div id="log">Consola de eventos...</div>
+</body>
+</html>

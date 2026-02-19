@@ -1,0 +1,58 @@
+<html>
+<head>
+<title>Enumeracion de Sesiones Vertical</title>
+<style>
+    body { background: #0c0c0c; color: #33ff33; font-family: 'Consolas', monospace; padding: 20px; }
+    #output { 
+        width: 100%; height: 500px; background: #000; color: #33ff33; 
+        border: 1px solid #33ff33; padding: 10px; overflow-y: scroll;
+        font-size: 13px; line-height: 1.5;
+    }
+    button { 
+        background: #222; color: #33ff33; border: 1px solid #33ff33; 
+        padding: 10px 20px; cursor: pointer; font-weight: bold; margin-bottom: 10px;
+    }
+    .header { color: #00ccff; font-weight: bold; border-bottom: 1px solid #33ff33; margin-bottom: 5px; }
+</style>
+
+<script language="JScript">
+    function listarSesionesDominio() {
+        var out = document.getElementById("output");
+        out.innerHTML = "<div class='header'>DOMINIO\\USUARIO          |  PROCESO</div>";
+
+        try {
+            var wmi = GetObject("winmgmts:{impersonationLevel=impersonate}!\\\\.\\root\\cimv2");
+            var colProcs = wmi.ExecQuery("Select * from Win32_Process");
+            var e = new Enumerator(colProcs);
+            
+            while (!e.atEnd()) {
+                var p = e.item();
+                var user = { value: "" };
+                var domain = { value: "" };
+                
+                if (p.GetOwner(user, domain) === 0) {
+                    var fullUser = domain.value + "\\" + user.value;
+                    
+                    // Filtrado de ruido para encontrar al usuario de dominio
+                    if (user.value !== "SYSTEM" && user.value !== "LOCAL SERVICE" && 
+                        user.value !== "NETWORK SERVICE" && user.value !== "DWM-1") {
+                        
+                        // Usamos <br> para forzar el salto de línea visual
+                        out.innerHTML += fullUser + " | <b>" + p.Name + "</b><br>";
+                    }
+                }
+                e.moveNext();
+            }
+            out.innerHTML += "<br>--- Escaneo finalizado ---";
+
+        } catch (err) {
+            out.innerHTML = "Error: " + err.message;
+        }
+    }
+</script>
+</head>
+<body>
+    <button onclick="listarSesionesDominio()">ESCANEAR SESIONES (LISTA VERTICAL)</button>
+    <div id="output"></div>
+</body>
+</html>

